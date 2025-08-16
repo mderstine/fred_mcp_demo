@@ -1,21 +1,23 @@
 import asyncio
 import os
-
+from dotenv import load_dotenv
 from fastmcp import FastMCP
 from fredapi import Fred
+from typing import Optional
 import polars as pl
 
 
-server = FastMCP("fred")
-
+load_dotenv()
 fred = Fred(api_key=os.getenv("FRED_API_KEY"))
+
+server = FastMCP("fred")
 
 
 @server.tool()
 def get_series(
     series_id: str,
-    observation_start: str | None = None,
-    observation_end: str | None = None,
+    observation_start: Optional[str],
+    observation_end: Optional[str],
 ) -> list[dict[str, str | float]]:
     """Return a FRED time series as a list of records.
 

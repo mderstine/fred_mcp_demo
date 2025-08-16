@@ -9,4 +9,5 @@ dependencies = [
     "fredapi>=0.5.2",
     "openai>=1.99.9",
     "polars>=1.32.3",
+    "python-dotenv>=1.1.1",
 ]

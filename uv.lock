@@ -293,6 +293,7 @@ dependencies = [
     { name = "fredapi" },
     { name = "openai" },
     { name = "polars" },
+    { name = "python-dotenv" },
 ]
 
 [package.metadata]
@@ -301,6 +302,7 @@ requires-dist = [
     { name = "fredapi", specifier = ">=0.5.2" },
     { name = "openai", specifier = ">=1.99.9" },
     { name = "polars", specifier = ">=1.32.3" },
+    { name = "python-dotenv", specifier = ">=1.1.1" },
 ]
 
 [[package]]

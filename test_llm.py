@@ -1,8 +1,12 @@
+import os
 from openai import OpenAI
+from dotenv import load_dotenv
 
 
 def main() -> None:
-    client = OpenAI()
+    load_dotenv()
+
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     response = client.responses.create(
         model="gpt-4o-mini",
         input="Use the FRED search tool to find the series ID for GDP and then retrieve the latest value.",
