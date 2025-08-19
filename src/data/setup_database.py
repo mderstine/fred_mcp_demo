@@ -10,7 +10,7 @@ import polars as pl
 from pathlib import Path
 
 
-def load_config() -> None:
+def load_config() -> dict:
     """
     Load configuration from YAML file.
     """
@@ -57,7 +57,8 @@ def setup_database(connection_string: str) -> None:
         CREATE TABLE bond_positions (
             position_id INTEGER PRIMARY KEY,
             instrument_id VARCHAR,
-            date DATE,
+            acquisition_date DATE,
+            termination_date DATE NULL,
             notional DECIMAL(20, 2),
             face_value DECIMAL(20, 2),
             coupon_rate DECIMAL(5, 2),
@@ -76,7 +77,7 @@ def setup_database(connection_string: str) -> None:
     conn.execute(
         """
         CREATE UNIQUE INDEX idx_bond_position_natural_key
-        ON bond_positions (instrument_id, date);
+        ON bond_positions (instrument_id, acquisition_date);
         """
     )
 
@@ -123,3 +124,82 @@ def setup_database(connection_string: str) -> None:
     )
 
     
+def create_sample_data(connection_string: str) -> None:
+    """
+    Create sample data for bond positions and market term structures.
+    
+    Args:
+        connection_string (str): The connection string for the DuckDB database.
+    """
+    conn = duckdb.connect(database=connection_string, read_only=False)
+
+    # Sample Bond Positions
+    sample_bond_positions = pl.DataFrame(
+        {
+            "position_id": [1, 2, 3],
+            "instrument_id": [
+                "GOVT-USD-05Y",         # Bond 1: Government bond
+                "CORP-ABC-USD-10Y",     # Bond 2: Corporate bond
+                "GOVT-EUR-07Y"          # Bond 3: Government bond
+            ],
+            "acquisition_date": ["2025-01-15", "2025-02-12", "2024-12-26"],
+            "termination_date": [None, None, None],
+            "notional": [1000000.00, 500000.00, 750000.00],
+            "face_value": [1000.00, 1000.00, 1000.00],
+            "coupon_rate": [0.0275, 0.0325, 0.0150],
+            "maturity_date": ["2030-01-01", "2035-01-01", "2030-12-31"],
+            "frequency": [2, 2, 1],  # Semi-Annual, Semi-Annual, Annual
+            "day_count_convention": ["Actual/Actual", "30/360", "Actual/360"],
+            "settlement_days": [2, 2, 2],
+            "settlement_calendar": ["US", "US", "TARGET"],
+            "business_convention": ["Modified Following", "Modified Following", "Following"],
+            "compound_type": ["Compounded", "Compounded", "Simple"],
+            "currency": ["USD", "USD", "EUR"]
+        }
+    )
+
+    # Insert Sample Bond Positions
+    conn.execute(
+        """
+        INSERT INTO bond_positions
+        SELECT * FROM sample_bond_positions;
+        """
+    )
+
+    # Sample Market Term Structures
+    sample_market_term_structures = pl.DataFrame(
+        {
+            "market_id": [1, 2],
+            "reference_date": ["2025-08-11", "2025-08-12"],
+            "curve_type": ["ZeroCurve", "ZeroCurve"],
+            "curve_data": [
+                '{"tenors": ["1M", "3M", "6M", "1Y", "2Y", "3Y", "5Y", "10Y"], "rates": [0.01, 0.015, 0.02, 0.025, 0.03, 0.035, 0.04, 0.045]}',
+                '{"tenors": ["1M", "3M", "6M", "1Y", "2Y", "3Y", "5Y", "10Y"], "rates": [0.012, 0.017, 0.022, 0.027, 0.032, 0.037, 0.042, 0.047]}'
+            ],
+            "curve_currency": ["USD", "EUR"]
+        }
+    )
+
+    # Insert Sample Market Term Structures
+    conn.execute(
+        """
+        INSERT INTO market_term_structures
+        SELECT * FROM sample_market_term_structures;
+        """
+    )
+
+def main():
+    """
+    Main function to set up the database and create sample data.
+    """
+    config = load_config()
+    connection_string = config["database"]["connection_string"]
+    
+    setup_database(connection_string)
+    create_sample_data(connection_string)
+    
+    print(f"Database Setup Complete. Data stored in {connection_string}.")
+
+
+if __name__ == "__main__":
+    main()
