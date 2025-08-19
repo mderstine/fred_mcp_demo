@@ -1,14 +1,7 @@
 [project]
 name = "mcp-demo"
 version = "0.1.0"
-description = "Add your description here"
+description = "Basic bond evaluation system used as MCP server prototype."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = [
-    "asyncio>=4.0.0",
-    "duckdb>=1.3.2",
-    "fastmcp>=2.11.3",
-    "langchain>=0.3.27",
-    "langchain-ollama>=0.3.6",
-    "quantlib>=1.39",
-]
+dependencies = []
