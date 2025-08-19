@@ -1,0 +1,7 @@
+database:
+  type: duckdb
+  connection_string: "data/bond-evaluator.duckdb"
+
+logging:
+  level: INFO
+  file: logs/bond_evaluator.log

@@ -4,4 +4,8 @@ version = "0.1.0"
 description = "Basic bond evaluation system used as MCP server prototype."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "duckdb>=1.3.2",
+    "polars>=1.32.3",
+    "pyyaml>=6.0.2",
+]
