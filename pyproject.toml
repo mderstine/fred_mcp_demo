@@ -1,14 +1,14 @@
 [project]
-name = "fred-mcp-demo"
+name = "mcp-demo"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "aiohttp>=3.12.15",
+    "asyncio>=4.0.0",
+    "duckdb>=1.3.2",
     "fastmcp>=2.11.3",
-    "fredapi>=0.5.2",
-    "openai>=1.99.9",
-    "polars>=1.32.3",
-    "python-dotenv>=1.1.1",
+    "langchain>=0.3.27",
+    "langchain-ollama>=0.3.6",
+    "quantlib>=1.39",
 ]
