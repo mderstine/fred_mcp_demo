@@ -1,6 +1,6 @@
 database:
   type: duckdb
-  connection_string: "data/bond-evaluator.duckdb"
+  connection_string: "data/bondbook.duckdb"
 
 logging:
   level: INFO
