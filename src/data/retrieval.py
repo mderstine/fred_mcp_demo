@@ -1,7 +1,5 @@
 # src/data/retrieval.py
-from __future__ import annotations
 from datetime import date, datetime
-from typing import Optional, Tuple, Union
 from collections.abc import Sequence
 import duckdb
 import polars as pl
@@ -9,7 +7,7 @@ from pathlib import Path
 import yaml
 
 
-# ---------- Connection helpers ----------
+# Connection / Translators
 def load_config() -> dict:
     """
     Load configuration from YAML file.
@@ -27,7 +25,6 @@ def load_config() -> dict:
 def get_connection() -> duckdb.DuckDBPyConnection:
     """
     Get a connection to the DuckDB database.
-    
     Returns:
         duckdb.Connection: Connection object to the DuckDB database.
     """
@@ -40,10 +37,8 @@ def get_connection() -> duckdb.DuckDBPyConnection:
 def _to_date(d: str | date | datetime) -> date:
     """
     Convert various date formats to a date object.
-    
     Args:
         d (Union[str, date, datetime]): The date to convert.
-        
     Returns:
         date: The corresponding date object.
     """
@@ -57,10 +52,8 @@ def _to_date(d: str | date | datetime) -> date:
 def _to_timestamp(ts: str | date | datetime) -> datetime:
     """
     Convert various timestamp formats to a datetime object.
-    
     Args:
         ts (Union[str, date, datetime]): The timestamp to convert.
-        
     Returns:
         datetime: The corresponding datetime object.
     """
@@ -78,15 +71,15 @@ def _to_timestamp(ts: str | date | datetime) -> datetime:
         return datetime(d.year, d.month, d.day, 23, 59, 59)
 
 
-# ---------- Lookups / dictionaries ----------
+# Lookups / Dictionaries
 
-def list_portfolios(conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
+def list_portfolios() -> pl.DataFrame:
     """
     List all portfolios present in positions or results.
-    
     Returns:
         pl.DataFrame: DataFrame containing all portfolio IDs.
     """
+    conn = get_connection()
 
     sql = """
         WITH a AS (
@@ -108,13 +101,13 @@ def list_portfolios(conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
     return result
 
 
-def list_securities(conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
+def list_securities() -> pl.DataFrame:
     """
     List all securities in the security master.
-    
     Returns:
         pl.DataFrame: DataFrame containing all securities with basic identifiers.
     """
+    conn = get_connection()
     
     sql = """
     SELECT
@@ -138,11 +131,15 @@ def list_securities(conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
 
 
 def get_security(
-    conn: duckdb.DuckDBPyConnection,
     security_ids: int | str | Sequence[int] | None = None,
     isins: str | Sequence[str] | None = None,
     cusips: str | Sequence[str] | None = None
 ) -> pl.DataFrame:
+    """
+    List one or more securities  
+    
+    """
+    conn = get_connection()
 
     clauses, params = [], []
 
@@ -150,7 +147,6 @@ def get_security(
         if isinstance(security_ids, int):
             security_ids = [security_ids]
         elif isinstance(security_ids, str):
-            # If security_ids is a string, try to convert to int
             try:
                 security_ids = [int(security_ids)]
             except ValueError:
