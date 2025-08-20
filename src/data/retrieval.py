@@ -230,14 +230,14 @@ def check_evaluation_exists(
 
 def get_latest_evaluation(
     instrument_id: str,
-    currency: Optional[List[str]] = None
+    currency: Optional[str] = None
 ) -> pl.DataFrame:
     """
-    Retrieve the latest evaluation for a given instrument ID and optional currency.
+    Retrieve the latest evaluation for a given instrument and optional currency.
     
     Args:
         instrument_id (str): The ID of the instrument.
-        currency (Optional[List[str]]): List of currencies to filter by.
+        currency (Optional[str]): The currency to filter by.
     
     Returns:
         pl.DataFrame: DataFrame containing the latest evaluation.
@@ -247,28 +247,17 @@ def get_latest_evaluation(
     query = """
         SELECT *
         FROM evaluated_positions
-        WHERE position_id = (
-            SELECT position_id
-            FROM bond_positions
-            WHERE instrument_id = ?
-            {currency_condition}
-            ORDER BY acquisition_date DESC
-            LIMIT 1
-        )
+        WHERE instrument_id = ?
         ORDER BY evaluation_date DESC
         LIMIT 1
     """
     
-    currency_condition = ""
     if currency:
-        currency_condition = " AND currency IN (SELECT * FROM unnest(?))"
-    
-    result = (
-        conn.execute(
-            query.format(currency_condition=currency_condition),
-            [instrument_id] + (currency if currency else [])
-        )
-        .pl()
-    )
-    
+        query += " AND currency = ?"
+        params = [instrument_id, currency]
+    else:
+        params = [instrument_id]
+
+    result = conn.execute(query, params).pl()
+
     return result

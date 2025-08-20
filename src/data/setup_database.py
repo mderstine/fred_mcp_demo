@@ -57,6 +57,7 @@ def setup_database(connection_string: str) -> None:
         CREATE TABLE bond_positions (
             position_id INTEGER PRIMARY KEY,
             instrument_id VARCHAR,
+            issue_date DATE,
             acquisition_date DATE,
             termination_date DATE NULL,
             notional DECIMAL(20, 2),
@@ -68,6 +69,8 @@ def setup_database(connection_string: str) -> None:
             settlement_days INTEGER,
             settlement_calendar VARCHAR,
             business_convention VARCHAR,
+            termination_date_business_day_convention VARCHAR NULL,
+            date_generation_rule VARCHAR,
             compound_type VARCHAR,
             currency VARCHAR
         );
@@ -142,6 +145,7 @@ def create_sample_data(connection_string: str) -> None:
                 "CORP-ABC-USD-10Y",     # Bond 2: Corporate bond
                 "GOVT-EUR-07Y"          # Bond 3: Government bond
             ],
+            "issue_date": ["2025-01-01", "2025-02-01", "2024-12-01"],
             "acquisition_date": ["2025-01-15", "2025-02-12", "2024-12-26"],
             "termination_date": [None, None, None],
             "notional": [1000000.00, 500000.00, 750000.00],
@@ -152,7 +156,9 @@ def create_sample_data(connection_string: str) -> None:
             "day_count_convention": ["Actual/Actual", "30/360", "Actual/360"],
             "settlement_days": [2, 2, 2],
             "settlement_calendar": ["US", "US", "TARGET"],
-            "business_convention": ["Modified Following", "Modified Following", "Following"],
+            "business_convention": ["ModifiedFollowing", "ModifiedFollowing", "Following"],
+            "termination_date_business_day_convention": ["ModifiedFollowing", "ModifiedFollowing", "Following"],
+            "date_generation_rule": ["Backward", "Backward", "Backward"],
             "compound_type": ["Compounded", "Compounded", "Simple"],
             "currency": ["USD", "USD", "EUR"]
         }

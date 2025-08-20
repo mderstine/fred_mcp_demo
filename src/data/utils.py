@@ -148,45 +148,36 @@ def get_portfolio_evaluation_summary(
 
 def get_historical_evaluations(
     instrument_id: str,
-    market_id: int,
     start_date: Union[str, dt.datetime, dt.date],
     end_date: Union[str, dt.datetime, dt.date]
 ) -> pl.DataFrame:
     """
-    Get historical evaluations for a specific instrument and market within a date range.
-
+    Get historical evaluations for a specific instrument within a date range.
+    
     Args:
-        instrument_id (str): The ID of the instrument to filter by.
-        market_id (int): The market ID to filter by.
-        start_date (Union[str, dt.datetime, dt.date]): Start date for the evaluation range.
-        end_date (Union[str, dt.datetime, dt.date]): End date for the evaluation range.
+        instrument_id (str): The ID of the instrument.
+        start_date (Union[str, dt.datetime, dt.date]): Start date of the range.
+        end_date (Union[str, dt.datetime, dt.date]): End date of the range.
 
     Returns:
         pl.DataFrame: DataFrame containing historical evaluations.
     """
-    
-    # Get Position IDs for the Instrument
-    positions = get_bond_positions(instrument_ids=[instrument_id])
 
-    if len(positions) == 0:
+    # Get Evaluated Positions for the Given Instrument and Date Range
+    evaluations = get_evaluated_positions(instrument_ids=[instrument_id])
+
+    if evaluations.height == 0:
         return pl.DataFrame()
-    
-    position_id = positions["position_id"].unique().item()
 
-    # Get Historical Evaluations
-    # Filter by Date Range
-    # Sort by Evaluation Date
-    
+    # Filter Evaluations by Date Range
+    # Sort by Evluation Date
     evaluations = (
-        get_evaluated_positions(
-            position_ids=[position_id],
-            market_ids=[market_id]
-        )
+        evaluations
         .filter(
-            (pl.col("evaluation_date") >= start_date) &
-            (pl.col("evaluation_date") <= end_date)
+            pl.col("evaluation_date").ge(pl.lit(start_date)),
+            pl.col("evaluation_date").le(pl.lit(end_date))
         )
         .sort("evaluation_date")
     )
-    
+
     return evaluations
