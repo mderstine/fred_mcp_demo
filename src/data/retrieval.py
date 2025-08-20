@@ -2,6 +2,7 @@
 from __future__ import annotations
 from datetime import date, datetime
 from typing import Optional, Tuple, Union
+from collections.abc import Sequence
 import duckdb
 import polars as pl
 from pathlib import Path
@@ -36,7 +37,7 @@ def get_connection() -> duckdb.DuckDBPyConnection:
     return duckdb.connect(database=connection_string, read_only=False)
 
 
-def _to_date(d: Union[str, date, datetime]) -> date:
+def _to_date(d: str | date | datetime) -> date:
     """
     Convert various date formats to a date object.
     
@@ -53,7 +54,7 @@ def _to_date(d: Union[str, date, datetime]) -> date:
     return date.fromisoformat(d)
 
 
-def _to_timestamp(ts: Union[str, date, datetime]) -> datetime:
+def _to_timestamp(ts: str | date | datetime) -> datetime:
     """
     Convert various timestamp formats to a datetime object.
     
@@ -101,7 +102,10 @@ def list_portfolios(conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         ORDER BY portfolio_id
     """
     
-    return conn.sql(query=sql).pl()
+    result = conn.sql(query=sql).pl()
+    if result.height == 0:
+        raise ValueError("No portfolios found.")
+    return result
 
 
 def list_securities(conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
@@ -127,14 +131,17 @@ def list_securities(conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
     FROM dim_security_bond
     ORDER BY security_id
     """
-    return conn.sql(query=sql).pl()
+    result = conn.sql(query=sql).pl()
+    if result.height == 0:
+        raise ValueError("No securities found.")
+    return result
 
 
 def get_security(
     conn: duckdb.DuckDBPyConnection,
-    security_ids: Optional[Union[int, str, list[int]]] = None,
-    isins: Optional[Union[str, list[str]]] = None,
-    cusips: Optional[Union[str, list[str]]] = None
+    security_ids: int | str | Sequence[int] | None = None,
+    isins: str | Sequence[str] | None = None,
+    cusips: str | Sequence[str] | None = None
 ) -> pl.DataFrame:
 
     clauses, params = [], []
@@ -148,7 +155,7 @@ def get_security(
                 security_ids = [int(security_ids)]
             except ValueError:
                 raise TypeError("security_ids must be an int or a sequence of ints, or a string convertible to int")
-        elif not isinstance(security_ids, list):
+        elif not isinstance(security_ids, Sequence):
             security_ids = list(security_ids)
         else:
             security_ids = list(security_ids)
@@ -158,15 +165,19 @@ def get_security(
         params.extend(security_ids)
 
     if isins is not None:
-        if not isinstance(isins, list) or isinstance(isins, str):
+        if not isinstance(isins, Sequence) or isinstance(isins, str):
             isins = [isins]
+        else:
+            isins = list(isins)
         placeholders = ",".join(["?"] * len(isins))
         clauses.append(f"isin IN ({placeholders})")
         params.extend(isins)
 
     if cusips is not None:
-        if not isinstance(cusips, list) or isinstance(cusips, str):
+        if not isinstance(cusips, Sequence) or isinstance(cusips, str):
             cusips = [cusips]
+        else:
+            cusips = list(cusips)
         placeholders = ",".join(["?"] * len(cusips))
         clauses.append(f"cusip IN ({placeholders})")
         params.extend(cusips)
@@ -175,16 +186,19 @@ def get_security(
         raise ValueError("Provide security_ids, isins, or cusips")
 
     sql = f"SELECT * FROM dim_security_bond WHERE {' OR '.join(clauses)}"
-    return conn.sql(query=sql, params=tuple(params)).pl()
+    result = conn.sql(query=sql, params=tuple(params)).pl()
+    if result.height == 0:
+        raise ValueError("No securities found for given filters.")
+    return result
 
 
 # ---------- Positions ----------
 
 def get_position_snapshot(
     conn: duckdb.DuckDBPyConnection,
-    as_of: Union[str, date, datetime],
-    portfolio_id: Optional[Union[int, list[int]]] = None,
-    security_ids: Optional[Union[int, list[int]]] = None
+    as_of: str | date | datetime,
+    portfolio_id: int | Sequence[int] | None = None,
+    security_ids: int | Sequence[int] | None = None
 ) -> pl.DataFrame:
     """
     Get end-of-day position snapshot for a given date and optional portfolio/security filter.
@@ -212,6 +226,10 @@ def get_position_snapshot(
                 portfolio_id = [int(portfolio_id)]
             except ValueError:
                 raise TypeError("portfolio_id must be an int or a sequence of ints, or a string convertible to int")
+        elif not isinstance(portfolio_id, Sequence):
+            portfolio_id = list(portfolio_id)
+        else:
+            portfolio_id = list(portfolio_id)
         clauses.append("portfolio_id IN ({})".format(",".join(["?"] * len(portfolio_id))))
         params.extend(portfolio_id)
 
@@ -223,6 +241,10 @@ def get_position_snapshot(
                 security_ids = [int(security_ids)]
             except ValueError:
                 raise TypeError("security_ids must be an int or a sequence of ints, or a string convertible to int")
+        elif not isinstance(security_ids, Sequence):
+            security_ids = list(security_ids)
+        else:
+            security_ids = list(security_ids)
         clauses.append("security_id IN ({})".format(",".join(["?"] * len(security_ids))))
         params.extend(security_ids)
 
@@ -233,13 +255,16 @@ def get_position_snapshot(
         ORDER BY portfolio_id, security_id
     """
     
-    return conn.sql(query=sql, params=tuple(params)).pl()
+    result = conn.sql(query=sql, params=tuple(params)).pl()
+    if result.height == 0:
+        raise ValueError(f"No position snapshot found for as_of={as_of}")
+    return result
 
 
 def get_open_lots_asof(
     conn: duckdb.DuckDBPyConnection,
-    as_of: Union[str, date, datetime],
-    portfolio_ids: Optional[Union[int, list[int]]] = None
+    as_of: str | date | datetime,
+    portfolio_ids: int | Sequence[int] | None = None
 ) -> pl.DataFrame:
     """
     Get open lots for a portfolio at a specific date.
@@ -253,9 +278,8 @@ def get_open_lots_asof(
         pl.DataFrame: DataFrame containing open lots.
     """
     
-    as_of_date = _to_date(as_of)
-    clauses = ["as_of_date = ?"]
-    params: list = [as_of_date]
+    clauses = ["trade_date <= ?"]
+    params: list = [_to_date(as_of)]
 
     if portfolio_ids is not None:
         if isinstance(portfolio_ids, int):
@@ -265,28 +289,35 @@ def get_open_lots_asof(
                 portfolio_ids = [int(portfolio_ids)]
             except ValueError:
                 raise TypeError("portfolio_ids must be an int or a sequence of ints, or a string convertible to int")
+        elif not isinstance(portfolio_ids, Sequence):
+            portfolio_ids = list(portfolio_ids)
+        else:
+            portfolio_ids = list(portfolio_ids)
         clauses.append("portfolio_id IN ({})".format(",".join(["?"] * len(portfolio_ids))))
         params.extend(portfolio_ids)
 
     sql = f"""
         SELECT *
         FROM fact_position_lot
-        WHERE {' AND '.join(clauses)} AND position_qty_open > 0
+        WHERE {' AND '.join(clauses)}
         ORDER BY portfolio_id, security_id, lot_id
     """
     
-    return conn.sql(query=sql, params=tuple(params)).pl()
+    result = conn.sql(query=sql, params=tuple(params)).pl()
+    if result.height == 0:
+        raise ValueError(f"No open lots found for as_of={as_of}")
+    return result
     
 
 # ---------- Quotes / FX ----------
 
 def get_quotes_window(
     conn: duckdb.DuckDBPyConnection,
-    beg_ts: Union[str, date, datetime],
-    end_ts: Union[str, date, datetime],
-    security_id: Optional[Union[int, list[int]]] = None,
-    quote_type: Optional[Union[str, list[str]]] = None,
-    source: Optional[str] = None
+    beg_ts: str | date | datetime,
+    end_ts: str | date | datetime,
+    security_id: int | Sequence[int] | None = None,
+    quote_type: str | Sequence[str] | None = None,
+    source: str | None = None
 ) -> pl.DataFrame:
     """
     Pull quotes within a timestamp window.
@@ -323,14 +354,17 @@ def get_quotes_window(
         ORDER BY as_of_ts
     """
 
-    return conn.sql(query=sql, params=tuple(params)).pl()
+    result = conn.sql(query=sql, params=tuple(params)).pl()
+    if result.height == 0:
+        raise ValueError(f"No quotes found for window {beg_ts} to {end_ts}")
+    return result
 
 
 def get_latest_quotes_eod(
     conn: duckdb.DuckDBPyConnection,
-    as_of: Union[str, date, datetime],
-    prefer_sources: Optional[Union[str, list[str]]] = ["TRACE", "Trader"],
-    quote_types: list[str] = ["CleanPrice", "Yield", "ZSpread"]
+    as_of: str | date | datetime,
+    prefer_sources: str | Sequence[str] | None = None,
+    quote_types: Sequence[str] | None = None
 ) -> pl.DataFrame:
     """
     Get the latest quotes at or before EOD for each security and quote type.
@@ -338,8 +372,8 @@ def get_latest_quotes_eod(
     Args:
         conn (duckdb.DuckDBPyConnection): Database connection.
         as_of (Union[str, date, datetime]): The date for which to get the latest quotes.
-        prefer_sources (Optional[Union[str, list[str]]]): List of preferred sources to break ties.
-        quote_types (list[str]): List of quote types to retrieve.
+        prefer_sources (Optional[Union[str, Sequence[str]]]): List of preferred sources to break ties.
+        quote_types (Sequence[str] | None): List of quote types to retrieve.
     
     Returns:
         pl.DataFrame: DataFrame containing the latest quotes.
@@ -347,11 +381,19 @@ def get_latest_quotes_eod(
 
     cutoff = _to_timestamp(as_of)
 
+    # Default quote_types if None
+    if quote_types is None:
+        quote_types = ["CleanPrice", "Yield", "ZSpread"]
+
+    # Default prefer_sources if None
+    if prefer_sources is None:
+        prefer_sources = ["TRACE", "Trader"]
+
     # Rank by timestamp desc and optional source preference
     # Build a CASE expression for source preference if provided
     if prefer_sources:
         cases = " ".join(
-            f"WHEN source = '{s}' THEN {i}" for i, s in enumerate(prefer_sources)
+            [f"WHEN source = '{s}' THEN {i}" for i, s in enumerate(prefer_sources)]
         )
         source_rank = f"(CASE {cases} ELSE 999 END)"
     else:
@@ -382,7 +424,10 @@ def get_latest_quotes_eod(
         ORDER BY security_id, quote_type
     """
 
-    return conn.sql(query=sql, params=tuple(params)).pl()
+    result = conn.sql(query=sql, params=tuple(params)).pl()
+    if result.height == 0:
+        raise ValueError(f"No quotes found for as_of={as_of}")
+    return result
 
 
 # ---------- Curves ----------
@@ -403,7 +448,10 @@ def get_curve_header(
     """
     
     sql = "SELECT * FROM md_curve WHERE curve_id = ?"
-    return conn.sql(query=sql, params=(curve_id,)).pl()
+    result = conn.sql(query=sql, params=(curve_id,)).pl()
+    if result.height == 0:
+        raise ValueError(f"No curve header found for curve_id={curve_id}")
+    return result
 
 
 def get_curve_nodes(
@@ -435,14 +483,17 @@ def get_curve_nodes(
       END
     """
     
-    return conn.sql(query=sql, params=(curve_id,)).pl()
+    result = conn.sql(query=sql, params=(curve_id,)).pl()
+    if result.height == 0:
+        raise ValueError(f"No curve nodes found for curve_id={curve_id}")
+    return result
 
 
 def get_latest_curve_for_market(
     conn: duckdb.DuckDBPyConnection,
     market: str,
-    as_of: Union[str, date, datetime]
-) -> Tuple[int, pl.DataFrame, pl.DataFrame]:
+    as_of: str | date | datetime
+) -> tuple[int, pl.DataFrame, pl.DataFrame]:
     """
     Get the latest curve for a market as of a specific date.
     
@@ -466,13 +517,14 @@ def get_latest_curve_for_market(
         )
         SELECT curve_id FROM latest
     """
-    ids = conn.sql(query=sql, params=tuple(market, as_of_date)).pl()
+    ids = conn.sql(query=sql, params=(market, as_of_date)).pl()
 
     if ids.height == 0:
         raise ValueError(f"No curve found for market={market!r} as_of<={as_of_date}")
     curve_id = int(ids.item(0, "curve_id"))
-    hdr = get_curve_header(con, curve_id)
-    nodes = get_curve_nodes(con, curve_id)
+    hdr = get_curve_header(conn, curve_id)
+    nodes = get_curve_nodes(conn, curve_id)
+    
     return curve_id, hdr, nodes
 
 
@@ -491,14 +543,17 @@ def get_run(conn: duckdb.DuckDBPyConnection, run_id: int) -> pl.DataFrame:
     """
     
     sql = "SELECT * FROM val_run WHERE run_id = ?"
-    return conn.sql(query=sql, params=(run_id,)).pl()   
+    result = conn.sql(query=sql, params=(run_id,)).pl()
+    if result.height == 0:
+        raise ValueError(f"No run found for run_id={run_id}")
+    return result   
 
 
 def get_run_results(
     conn: duckdb.DuckDBPyConnection,
     run_id: int,
-    portfolio_id: Optional[int] = None,
-    security_ids: Optional[Union[int, list[int], str]] = None
+    portfolio_id: int | None = None,
+    security_ids: int | list[int] | str | None = None
 ) -> pl.DataFrame:
     """
     Get valuation results for a run, optionally filtered by portfolio and/or securities.
@@ -536,14 +591,17 @@ def get_run_results(
         ORDER BY portfolio_id, security_id
     """
 
-    return conn.sql(query=sql, params=tuple(params)).pl()
+    result = conn.sql(query=sql, params=tuple(params)).pl()
+    if result.height == 0:
+        raise ValueError(f"No results found for run_id={run_id}")
+    return result
 
 
 def get_run_cash_flows(
     conn: duckdb.DuckDBPyConnection,
     run_id: int,
-    portfolio_id: Optional[int] = None,
-    security_id: Optional[int] = None
+    portfolio_id: int | None = None,
+    security_id: int | None = None
 ) -> pl.DataFrame:
     """
     Get cash flows for a valuation run, optionally filtered by portfolio and/or security.
@@ -570,12 +628,15 @@ def get_run_cash_flows(
 
     sql = f"""
         SELECT *
-        FROM val_cashflow_bond
+        FROM val_cash_flow_bond
         WHERE {' AND '.join(clauses)}
         ORDER BY portfolio_id, security_id, flow_num
     """
 
-    return conn.sql(query=sql, params=tuple(params)).pl()
+    result = conn.sql(query=sql, params=tuple(params)).pl()
+    if result.height == 0:
+        raise ValueError(f"No cash flows found for run_id={run_id}")
+    return result
 
 
 def join_positions_with_results(
@@ -595,8 +656,6 @@ def join_positions_with_results(
     if run_df.height == 0:
         raise ValueError(f"run_id {run_id} not found")
     
-    as_of_date = run_df.item(0, "as_of_date")
-
     sql = """
     WITH eod AS (
         SELECT s.as_of_date, s.portfolio_id, s.security_id, s.position_qty_eod
@@ -627,9 +686,9 @@ def join_positions_with_results(
 
 def portfolio_eod_with_quotes(
     conn: duckdb.DuckDBPyConnection,
-    as_of: Union[str, date, datetime],
+    as_of: str | date | datetime,
     portfolio_id: int,
-    prefer_sources: Optional[Union[str, list[str]]] = ("TRACE", "Trader")
+    prefer_sources: str | list[str] | None = None
 ) -> pl.DataFrame:
     """
     Get end-of-day position for a portfolio with latest CleanPrice/Yield/ZSpread quotes attached.
@@ -650,7 +709,7 @@ def portfolio_eod_with_quotes(
         quotes
         .pivot(
             index=["security_id"],
-            on="guote_type",
+            on="quote_type",
             values="value"
         )
         .select(
